@@ -84,10 +84,11 @@ fn resumed_binary_accepts_slash_commands_with_arguments() {
 fn status_command_applies_cli_flags_end_to_end() {
     // given
     let temp_dir = unique_temp_dir("status-command-flags");
-    fs::create_dir_all(&temp_dir).expect("temp dir should exist");
+    let config_home = temp_dir.join("home").join(".claw");
+    fs::create_dir_all(&config_home).expect("config home should exist");
 
     // when
-    let output = run_claw(
+    let output = run_claw_with_env(
         &temp_dir,
         &[
             "--model",
@@ -96,6 +97,7 @@ fn status_command_applies_cli_flags_end_to_end() {
             "read-only",
             "status",
         ],
+        &[("CLAW_CONFIG_HOME", config_home.to_str().expect("utf8 path"))],
     );
 
     // then
