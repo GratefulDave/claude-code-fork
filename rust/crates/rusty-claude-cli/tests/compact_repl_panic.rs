@@ -60,6 +60,7 @@ fn run_claw_repl(
         .current_dir(cwd)
         .env_clear()
         .env("ANTHROPIC_API_KEY", "test-compact-repl-key")
+        .env("DEEPSEEK_API_KEY", "test-compact-repl-key")
         .env("CLAW_CONFIG_HOME", config_home)
         .env("HOME", home)
         .env("NO_COLOR", "1")
@@ -84,7 +85,7 @@ fn python_pty_command(claw: &str) -> Command {
     let mut command = Command::new("python3");
     command.args([
         "-c",
-        r#"
+        r"
 import os
 import pty
 import subprocess
@@ -101,7 +102,7 @@ os.close(master)
 sys.stdout.buffer.write(stdout)
 sys.stderr.buffer.write(stderr)
 raise SystemExit(child.returncode)
-"#,
+",
         claw,
     ]);
     command

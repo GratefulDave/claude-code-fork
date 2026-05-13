@@ -2392,8 +2392,8 @@ pub fn handle_skills_slash_command(args: Option<&str>, cwd: &Path) -> std::io::R
                 || args.starts_with("describe ") =>
         {
             let name = args
-                .splitn(2, ' ')
-                .nth(1)
+                .split_once(' ')
+                .map(|x| x.1)
                 .unwrap_or_default()
                 .trim()
                 .to_lowercase();
@@ -2457,8 +2457,8 @@ pub fn handle_skills_slash_command_json(args: Option<&str>, cwd: &Path) -> std::
                 || args.starts_with("describe ") =>
         {
             let name = args
-                .splitn(2, ' ')
-                .nth(1)
+                .split_once(' ')
+                .map(|x| x.1)
                 .unwrap_or_default()
                 .trim()
                 .to_lowercase();
@@ -2622,6 +2622,7 @@ pub fn resolve_skill_path(cwd: &Path, skill: &str) -> std::io::Result<PathBuf> {
     ))
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn render_mcp_report_for(
     loader: &ConfigLoader,
     cwd: &Path,
@@ -2719,6 +2720,7 @@ fn render_mcp_unsupported_action_json(action: &str, hint: &str) -> Value {
     })
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn render_mcp_report_json_for(
     loader: &ConfigLoader,
     cwd: &Path,

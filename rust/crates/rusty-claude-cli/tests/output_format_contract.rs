@@ -353,6 +353,7 @@ fn doctor_and_resume_status_emit_json_when_requested() {
     assert!(resumed["sandbox"]["filesystem_mode"].as_str().is_some());
 }
 
+#[allow(clippy::too_many_lines)]
 #[test]
 fn resumed_inventory_commands_emit_structured_json_when_requested() {
     let root = unique_temp_dir("resume-inventory-json");

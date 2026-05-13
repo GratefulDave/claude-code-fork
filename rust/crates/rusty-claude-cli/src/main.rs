@@ -57,7 +57,7 @@ use tools::{
     execute_tool, mvp_tool_specs, GlobalToolRegistry, RuntimeToolDefinition, ToolSearchOutput,
 };
 
-const DEFAULT_MODEL: &str = "claude-opus-4-6";
+const DEFAULT_MODEL: &str = "deepseek-v4-pro";
 
 /// #148: Model provenance for `claw status` JSON/text output. Records where
 /// the resolved model string came from so claws don't have to re-read argv
@@ -67,12 +67,12 @@ const DEFAULT_MODEL: &str = "claude-opus-4-6";
 enum ModelSource {
     /// Explicit `--model` / `--model=` CLI flag.
     Flag,
-    /// ANTHROPIC_MODEL environment variable (when no flag was passed).
+    /// `ANTHROPIC_MODEL` environment variable (when no flag was passed).
     Env,
     /// `model` key in `.claw.json` / `.claw/settings.json` (when neither
     /// flag nor env set it).
     Config,
-    /// Compiled-in DEFAULT_MODEL fallback.
+    /// Compiled-in `DEFAULT_MODEL` fallback.
     Default,
 }
 
@@ -244,7 +244,7 @@ Run `claw --help` for usage."
 
 /// #77: Classify a stringified error message into a machine-readable kind.
 ///
-/// Returns a snake_case token that downstream consumers can switch on instead
+/// Returns a `snake_case` token that downstream consumers can switch on instead
 /// of regex-scraping the prose. The classification is best-effort prefix/keyword
 /// matching against the error messages produced throughout the CLI surface.
 fn classify_error_kind(message: &str) -> &'static str {
@@ -278,9 +278,9 @@ fn classify_error_kind(message: &str) -> &'static str {
     }
 }
 
-/// #77: Split a multi-line error message into (short_reason, optional_hint).
+/// #77: Split a multi-line error message into (`short_reason`, `optional_hint`).
 ///
-/// The short_reason is the first line (up to the first newline), and the hint
+/// The `short_reason` is the first line (up to the first newline), and the hint
 /// is the remaining text or `None` if there's no newline. This prevents the
 /// runbook prose from being stuffed into the `error` field that downstream
 /// parsers expect to be the short reason alone.
@@ -330,6 +330,7 @@ fn merge_prompt_with_stdin(prompt: &str, stdin_content: Option<&str>) -> String 
     format!("{prompt}\n\n{trimmed}")
 }
 
+#[allow(clippy::too_many_lines)]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().skip(1).collect();
     match parse_args(&args)? {
@@ -940,9 +941,9 @@ fn parse_args(args: &[String]) -> Result<CliAction, String> {
         // only intercepts the bare single-word form. Catch all multi-word
         // forms here and return a structured guidance error so no network
         // call or session is created.
-        "permissions" => Err(format!(
-            "`claw permissions` is a slash command. Start `claw` and run `/permissions` inside the REPL.\n  Usage  /permissions [read-only|workspace-write|danger-full-access]"
-        )),
+        "permissions" => Err(
+            "`claw permissions` is a slash command. Start `claw` and run `/permissions` inside the REPL.\n  Usage  /permissions [read-only|workspace-write|danger-full-access]".to_string()
+        ),
         "skills" => {
             let args = join_optional_args(&rest[1..]);
             match classify_skills_slash_command(args.as_deref()) {
@@ -1454,6 +1455,8 @@ fn resolve_model_alias(model: &str) -> &str {
         "opus" => "claude-opus-4-6",
         "sonnet" => "claude-sonnet-4-6",
         "haiku" => "claude-haiku-4-5-20251213",
+        "deepseek" | "deepseek-v4-pro" => "deepseek-v4-pro",
+        "deepseek-v4-flash" => "deepseek-v4-flash",
         _ => model,
     }
 }
@@ -1479,14 +1482,15 @@ fn validate_model_syntax(model: &str) -> Result<(), String> {
     }
     // Known aliases are always valid
     match trimmed {
-        "opus" | "sonnet" | "haiku" => return Ok(()),
+        "opus" | "sonnet" | "haiku" | "deepseek" | "deepseek-v4-pro" | "deepseek-v4-flash" => {
+            return Ok(())
+        }
         _ => {}
     }
     // Check for spaces (malformed)
     if trimmed.contains(' ') {
         return Err(format!(
-            "invalid model syntax: '{}' contains spaces. Use provider/model format or known alias",
-            trimmed
+            "invalid model syntax: '{trimmed}' contains spaces. Use provider/model format or known alias"
         ));
     }
     // Check provider/model format: provider_id/model_id
@@ -1494,8 +1498,7 @@ fn validate_model_syntax(model: &str) -> Result<(), String> {
     if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
         // #154: hint if the model looks like it belongs to a different provider
         let mut err_msg = format!(
-            "invalid model syntax: '{}'. Expected provider/model (e.g., anthropic/claude-opus-4-6) or known alias (opus, sonnet, haiku)",
-            trimmed
+            "invalid model syntax: '{trimmed}'. Expected provider/model (e.g., anthropic/claude-opus-4-6) or known alias (opus, sonnet, haiku)"
         );
         if trimmed.starts_with("gpt-") || trimmed.starts_with("gpt_") {
             err_msg.push_str("\nDid you mean `openai/");
@@ -3560,7 +3563,7 @@ fn run_resume_command(
                 message: Some(handle_agents_slash_command(args.as_deref(), &cwd)?),
                 json: Some(
                     serde_json::to_value(handle_agents_slash_command_json(args.as_deref(), &cwd)?)
-                        .unwrap_or_else(|_| serde_json::json!(null)),
+                        .unwrap_or(serde_json::Value::Null),
                 ),
             })
         }
@@ -3579,14 +3582,13 @@ fn run_resume_command(
         }
         SlashCommand::Plugins { action, target } => {
             // Only list is supported in resume mode (no runtime to reload)
-            match action.as_deref() {
-                Some("install") | Some("uninstall") | Some("enable") | Some("disable")
-                | Some("update") => {
-                    return Err(
-                        "resumed /plugins mutations are interactive-only; start `claw` and run `/plugins` in the REPL".into(),
-                    );
-                }
-                _ => {}
+            if matches!(
+                action.as_deref(),
+                Some("install" | "uninstall" | "enable" | "disable" | "update")
+            ) {
+                return Err(
+                    "resumed /plugins mutations are interactive-only; start `claw` and run `/plugins` in the REPL".into(),
+                );
             }
             let cwd = env::current_dir()?;
             let loader = ConfigLoader::default_for(&cwd);
@@ -5136,7 +5138,7 @@ impl LiveCli {
                 // Propagate ok:false → non-zero exit so automation callers
                 // can rely on exit code instead of inspecting the envelope.
                 // (#68: mcp error envelopes previously always exited 0.)
-                let is_error = value.get("ok").and_then(|v| v.as_bool()) == Some(false);
+                let is_error = value.get("ok").and_then(serde_json::Value::as_bool) == Some(false);
                 println!("{}", serde_json::to_string_pretty(&value)?);
                 if is_error {
                     std::process::exit(1);
@@ -5911,8 +5913,7 @@ fn format_status_report(
             Some(raw) if raw != model => {
                 format!("\n  Model source     {} (raw: {raw})", p.source.as_str())
             }
-            Some(_) => format!("\n  Model source     {}", p.source.as_str()),
-            None => format!("\n  Model source     {}", p.source.as_str()),
+            Some(_) | None => format!("\n  Model source     {}", p.source.as_str()),
         })
         .unwrap_or_default();
     blocks.extend([
@@ -6407,6 +6408,7 @@ fn render_config_json(
     });
 
     if let Some(section) = section {
+        #[allow(clippy::redundant_closure_for_method_calls)]
         let section_rendered: Option<String> = match section {
             "env" => runtime_config.get("env").map(|v| v.render()),
             "hooks" => runtime_config.get("hooks").map(|v| v.render()),
@@ -7933,6 +7935,7 @@ fn resolve_cli_auth_source() -> Result<AuthSource, Box<dyn std::error::Error>> {
     Ok(resolve_cli_auth_source_for_cwd()?)
 }
 
+#[allow(clippy::result_large_err)]
 fn resolve_cli_auth_source_for_cwd() -> Result<AuthSource, api::ApiError> {
     resolve_startup_auth_source(|| Ok(None))
 }
@@ -9840,7 +9843,7 @@ mod tests {
             Some(value) => std::env::set_var("RUSTY_CLAUDE_PERMISSION_MODE", value),
             None => std::env::remove_var("RUSTY_CLAUDE_PERMISSION_MODE"),
         }
-        std::fs::remove_dir_all(root).expect("temp config root should clean up");
+        std::fs::remove_dir_all(root).ok();
 
         assert_eq!(resolved, PermissionMode::WorkspaceWrite);
     }
@@ -10013,6 +10016,18 @@ mod tests {
     fn parses_bare_prompt_and_json_output_flag() {
         let _guard = env_lock();
         std::env::remove_var("RUSTY_CLAUDE_PERMISSION_MODE");
+        // Isolate from user-level config aliases (e.g. opus → deepseek-v4-pro).
+        let config_home = std::env::temp_dir().join(format!(
+            "claw-test-cfg-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&config_home).expect("config home should exist");
+        let original_config_home = std::env::var("CLAW_CONFIG_HOME").ok();
+        std::env::set_var("CLAW_CONFIG_HOME", &config_home);
+
         let args = vec![
             "--output-format=json".to_string(),
             "--model".to_string(),
@@ -10020,8 +10035,16 @@ mod tests {
             "explain".to_string(),
             "this".to_string(),
         ];
+        let result = parse_args(&args).expect("args should parse");
+
+        match original_config_home {
+            Some(value) => std::env::set_var("CLAW_CONFIG_HOME", value),
+            None => std::env::remove_var("CLAW_CONFIG_HOME"),
+        }
+        std::fs::remove_dir_all(&config_home).ok();
+
         assert_eq!(
-            parse_args(&args).expect("args should parse"),
+            result,
             CliAction::Prompt {
                 prompt: "explain this".to_string(),
                 model: "claude-opus-4-6".to_string(),
@@ -10354,8 +10377,21 @@ mod tests {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     #[test]
     fn removed_login_and_logout_subcommands_error_helpfully() {
+        let _guard = env_lock();
+        let config_home = std::env::temp_dir().join(format!(
+            "claw-test-cfg-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&config_home).expect("config home should exist");
+        let original_config_home = std::env::var("CLAW_CONFIG_HOME").ok();
+        std::env::set_var("CLAW_CONFIG_HOME", &config_home);
+
         let login = parse_args(&["login".to_string()]).expect_err("login should be removed");
         assert!(login.contains("ANTHROPIC_API_KEY"));
         let logout = parse_args(&["logout".to_string()]).expect_err("logout should be removed");
@@ -10535,7 +10571,7 @@ mod tests {
         // path (where they surface a misleading "missing Anthropic
         // credentials" error or burn API tokens on an empty prompt).
         let empty_err =
-            parse_args(&["".to_string()]).expect_err("empty positional arg should be rejected");
+            parse_args(&[String::new()]).expect_err("empty positional arg should be rejected");
         assert!(
             empty_err.starts_with("empty prompt:"),
             "empty-arg error should be specific, got: {empty_err}"
@@ -10546,7 +10582,7 @@ mod tests {
             whitespace_err.starts_with("empty prompt:"),
             "whitespace-only error should be specific, got: {whitespace_err}"
         );
-        let multi_empty_err = parse_args(&["".to_string(), "".to_string()])
+        let multi_empty_err = parse_args(&[String::new(), String::new()])
             .expect_err("multiple empty positional args should be rejected");
         assert!(
             multi_empty_err.starts_with("empty prompt:"),
@@ -10604,6 +10640,12 @@ mod tests {
             }
             other => panic!("expected CliAction::Status, got: {other:?}"),
         }
+
+        match original_config_home {
+            Some(value) => std::env::set_var("CLAW_CONFIG_HOME", value),
+            None => std::env::remove_var("CLAW_CONFIG_HOME"),
+        }
+        std::fs::remove_dir_all(&config_home).ok();
     }
 
     #[test]
@@ -10778,6 +10820,7 @@ mod tests {
         );
     }
 
+    #[allow(clippy::too_many_lines)]
     #[test]
     fn status_degrades_gracefully_on_malformed_mcp_config_143() {
         // #143: previously `claw status` hard-failed on any config parse error,
@@ -10880,7 +10923,7 @@ mod tests {
         );
         assert_eq!(
             json.pointer("/allowed_tools/restricted")
-                .and_then(|v| v.as_bool()),
+                .and_then(serde_json::Value::as_bool),
             Some(false),
             "default status should expose unrestricted tool state: {json}"
         );
@@ -11435,24 +11478,40 @@ mod tests {
     fn multi_word_prompt_still_uses_shorthand_prompt_mode() {
         let _guard = env_lock();
         std::env::remove_var("RUSTY_CLAUDE_PERMISSION_MODE");
-        // Input is ["--model", "opus", "please", "debug", "this"] so the joined
-        // prompt shorthand must stay a normal multi-word prompt while still
-        // honoring alias validation at parse time.
+        let config_home = std::env::temp_dir().join(format!(
+            "claw-test-cfg-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&config_home).expect("config home should exist");
+        let original_config_home = std::env::var("CLAW_CONFIG_HOME").ok();
+        std::env::set_var("CLAW_CONFIG_HOME", &config_home);
+
+        let result = parse_args(&[
+            "--model".to_string(),
+            "opus".to_string(),
+            "please".to_string(),
+            "debug".to_string(),
+            "this".to_string(),
+        ])
+        .expect("prompt shorthand should still work");
+
+        match original_config_home {
+            Some(value) => std::env::set_var("CLAW_CONFIG_HOME", value),
+            None => std::env::remove_var("CLAW_CONFIG_HOME"),
+        }
+        std::fs::remove_dir_all(&config_home).ok();
+
         assert_eq!(
-            parse_args(&[
-                "--model".to_string(),
-                "opus".to_string(),
-                "please".to_string(),
-                "debug".to_string(),
-                "this".to_string(),
-            ])
-            .expect("prompt shorthand should still work"),
+            result,
             CliAction::Prompt {
                 prompt: "please debug this".to_string(),
                 model: "claude-opus-4-6".to_string(),
                 output_format: CliOutputFormat::Text,
                 allowed_tools: None,
-                permission_mode: crate::default_permission_mode(),
+                permission_mode: PermissionMode::DangerFullAccess,
                 compact: false,
                 base_commit: None,
                 reasoning_effort: None,
